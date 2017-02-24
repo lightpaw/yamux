@@ -2,6 +2,7 @@ package yamux
 
 import (
 	"bytes"
+	"github.com/lightpaw/bufreader"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -382,7 +383,7 @@ func (s *Stream) incrSendWindow(hdr header, flags uint16) error {
 }
 
 // readData is used to handle a data frame
-func (s *Stream) readData(hdr header, flags uint16, conn io.Reader) error {
+func (s *Stream) readData(hdr header, flags uint16, conn *bufreader.Reader) error {
 	if err := s.processFlags(flags); err != nil {
 		return err
 	}
@@ -398,7 +399,10 @@ func (s *Stream) readData(hdr header, flags uint16, conn io.Reader) error {
 	}
 
 	// Wrap in a limited reader
-	conn = &io.LimitedReader{R: conn, N: int64(length)}
+	data, err := conn.ReadFull(int(length))
+	if err != nil {
+		return err
+	}
 
 	// Copy into buffer
 	s.recvLock.Lock()
@@ -407,7 +411,7 @@ func (s *Stream) readData(hdr header, flags uint16, conn io.Reader) error {
 		// This way we can read in the whole packet without further allocations.
 		s.recvBuf = bytes.NewBuffer(make([]byte, 0, length))
 	}
-	if _, err := io.Copy(s.recvBuf, conn); err != nil {
+	if _, err := s.recvBuf.Write(data); err != nil {
 		s.session.logger.Printf("[ERR] yamux: Failed to read stream data: %v", err)
 		s.recvLock.Unlock()
 		return err

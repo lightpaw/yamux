@@ -1,10 +1,9 @@
 package yamux
 
 import (
-	"bufio"
 	"fmt"
+	"github.com/lightpaw/bufreader"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"net"
@@ -39,7 +38,7 @@ type Session struct {
 	conn io.ReadWriteCloser
 
 	// bufRead is a buffered reader
-	bufRead *bufio.Reader
+	bufRead *bufreader.Reader
 
 	// pings is used to track inflight pings
 	pings    map[uint32]chan struct{}
@@ -90,7 +89,7 @@ func newSession(config *Config, conn io.ReadWriteCloser, client bool) *Session {
 		config:     config,
 		logger:     log.New(config.LogOutput, "", log.LstdFlags),
 		conn:       conn,
-		bufRead:    bufio.NewReader(conn),
+		bufRead:    bufreader.NewReader(conn, 1024),
 		pings:      make(map[uint32]chan struct{}),
 		streams:    make(map[uint32]*Stream),
 		inflight:   make(map[uint32]struct{}),
@@ -404,6 +403,7 @@ func (s *Session) send() {
 // recv is a long running goroutine that accepts new data
 func (s *Session) recv() {
 	if err := s.recvLoop(); err != nil {
+		s.bufRead.Close()
 		s.exitErr(err)
 	}
 }
@@ -411,15 +411,17 @@ func (s *Session) recv() {
 // recvLoop continues to receive data until a fatal error is encountered
 func (s *Session) recvLoop() error {
 	defer close(s.recvDoneCh)
-	hdr := header(make([]byte, headerSize))
+	var hdr header
 	var handler func(header) error
 	for {
 		// Read the header
-		if _, err := io.ReadFull(s.bufRead, hdr); err != nil {
+		if hdrBytes, err := s.bufRead.ReadFull(headerSize); err != nil {
 			if err != io.EOF && !strings.Contains(err.Error(), "closed") && !strings.Contains(err.Error(), "reset by peer") {
 				s.logger.Printf("[ERR] yamux: Failed to read header: %v", err)
 			}
 			return err
+		} else {
+			hdr = header(hdrBytes)
 		}
 
 		// Verify the version
@@ -470,7 +472,7 @@ func (s *Session) handleStreamMessage(hdr header) error {
 		// Drain any data on the wire
 		if hdr.MsgType() == typeData && hdr.Length() > 0 {
 			s.logger.Printf("[WARN] yamux: Discarding data for stream: %d", id)
-			if _, err := io.CopyN(ioutil.Discard, s.bufRead, int64(hdr.Length())); err != nil {
+			if _, err := s.bufRead.ReadFull(int(hdr.Length())); err != nil {
 				s.logger.Printf("[ERR] yamux: Failed to discard data: %v", err)
 				return nil
 			}
