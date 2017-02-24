@@ -5,10 +5,6 @@ import (
 )
 
 func TestConst(t *testing.T) {
-	if protoVersion != 0 {
-		t.Fatalf("bad: %v", protoVersion)
-	}
-
 	if typeData != 0 {
 		t.Fatalf("bad: %v", typeData)
 	}
@@ -45,7 +41,7 @@ func TestConst(t *testing.T) {
 		t.Fatalf("bad: %v", goAwayInternalErr)
 	}
 
-	if headerSize != 12 {
+	if headerSize != 11 {
 		t.Fatalf("bad header size")
 	}
 }
@@ -54,9 +50,6 @@ func TestEncodeDecode(t *testing.T) {
 	hdr := header(make([]byte, headerSize))
 	hdr.encode(typeWindowUpdate, flagACK|flagRST, 1234, 4321)
 
-	if hdr.Version() != protoVersion {
-		t.Fatalf("bad: %v", hdr)
-	}
 	if hdr.MsgType() != typeWindowUpdate {
 		t.Fatalf("bad: %v", hdr)
 	}

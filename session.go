@@ -424,12 +424,6 @@ func (s *Session) recvLoop() error {
 			hdr = header(hdrBytes)
 		}
 
-		// Verify the version
-		if hdr.Version() != protoVersion {
-			s.logger.Printf("[ERR] yamux: Invalid protocol version: %d", hdr.Version())
-			return ErrInvalidVersion
-		}
-
 		// Switch on the type
 		switch hdr.MsgType() {
 		case typeData:

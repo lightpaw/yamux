@@ -54,11 +54,6 @@ var (
 )
 
 const (
-	// protoVersion is the only version we support
-	protoVersion uint8 = 0
-)
-
-const (
 	// Data is used for data frames. They are followed
 	// by length bytes worth of payload.
 	typeData uint8 = iota
@@ -112,46 +107,40 @@ const (
 )
 
 const (
-	sizeOfVersion  = 1
 	sizeOfType     = 1
 	sizeOfFlags    = 2
 	sizeOfStreamID = 4
 	sizeOfLength   = 4
-	headerSize     = sizeOfVersion + sizeOfType + sizeOfFlags +
+	headerSize     = sizeOfType + sizeOfFlags +
 		sizeOfStreamID + sizeOfLength
 )
 
 type header []byte
 
-func (h header) Version() uint8 {
+func (h header) MsgType() uint8 {
 	return h[0]
 }
 
-func (h header) MsgType() uint8 {
-	return h[1]
-}
-
 func (h header) Flags() uint16 {
-	return binary.BigEndian.Uint16(h[2:4])
+	return binary.BigEndian.Uint16(h[1:3])
 }
 
 func (h header) StreamID() uint32 {
-	return binary.BigEndian.Uint32(h[4:8])
+	return binary.BigEndian.Uint32(h[3:7])
 }
 
 func (h header) Length() uint32 {
-	return binary.BigEndian.Uint32(h[8:12])
+	return binary.BigEndian.Uint32(h[7:11])
 }
 
 func (h header) String() string {
 	return fmt.Sprintf("Vsn:%d Type:%d Flags:%d StreamID:%d Length:%d",
-		h.Version(), h.MsgType(), h.Flags(), h.StreamID(), h.Length())
+		h.MsgType(), h.Flags(), h.StreamID(), h.Length())
 }
 
 func (h header) encode(msgType uint8, flags uint16, streamID uint32, length uint32) {
-	h[0] = protoVersion
-	h[1] = msgType
-	binary.BigEndian.PutUint16(h[2:4], flags)
-	binary.BigEndian.PutUint32(h[4:8], streamID)
-	binary.BigEndian.PutUint32(h[8:12], length)
+	h[0] = msgType
+	binary.BigEndian.PutUint16(h[1:3], flags)
+	binary.BigEndian.PutUint32(h[3:7], streamID)
+	binary.BigEndian.PutUint32(h[7:11], length)
 }
